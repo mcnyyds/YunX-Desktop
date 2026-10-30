@@ -726,7 +726,7 @@ class QuarkApi(
         }
         if (json.optInt("status") != 200) {
             // 透传服务端 message，如「提取码错误」「分享已失效」等
-            throw QuarkApiException(json.optString("message").ifBlank { "请求失败" })
+            throw QuarkApiException(json.optString("message").ifBlank { "请求失败" }, json.optInt("code"))
         }
         return parser(json.optJSONObject("data") ?: throw QuarkApiException("响应缺少 data"))
     }

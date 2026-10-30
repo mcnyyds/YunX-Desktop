@@ -84,7 +84,7 @@ class Pan123ResolveRepository(
             token = token
         ) ?: throw IllegalStateException("创建转存任务失败")
         api.pollCopySave(taskId, shareId, token)
-            ?: throw IllegalStateException("转存超时或失败")
+            ?: throw TransferPendingException(taskId.toString(), "转存已提交，尚未取得完成结果，请检查目标目录")
     }.fold(
         onSuccess = { Result.success(it) },
         onFailure = { Result.failure(it) }

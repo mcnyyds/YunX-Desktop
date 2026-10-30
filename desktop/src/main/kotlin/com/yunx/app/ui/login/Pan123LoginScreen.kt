@@ -34,7 +34,6 @@ fun Pan123LoginScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit
 ) {
-    val account by viewModel.pan123Account.collectAsState()
     val error = viewModel.loginError
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -48,8 +47,8 @@ fun Pan123LoginScreen(
         }
     }
     // 登录成功后自动关闭登录页
-    LaunchedEffect(account) {
-        if (account != null) onSaved()
+    LaunchedEffect(viewModel.loginSucceeded) {
+        if (viewModel.loginSucceeded > 0) onSaved()
     }
 
     BackHandler { onBack() }

@@ -89,7 +89,7 @@ class UCResolveRepository(private val api: UCApi) : ShareResolveRepository {
             cookie = cookie
         ) ?: throw IllegalStateException("转存失败")
         api.pollTask(taskId, cookie)
-            ?: throw IllegalStateException("转存超时，请稍后重试")
+            ?: throw TransferPendingException(taskId, "转存已提交，尚未取得完成结果，请检查目标目录")
     }.fold(
         onSuccess = { Result.success(it) },
         onFailure = { Result.failure(it) }

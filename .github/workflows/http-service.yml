@@ -1,0 +1,79 @@
+name: HTTP service and C++ SDK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: http-service-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-http-${{ runner.os }}-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', '**/*.gradle.kts') }}
+          restore-keys: gradle-http-${{ runner.os }}-
+      - name: Kotlin tests and protocol generation
+        run: |
+          . .\jdk-setup.ps1
+          $jdk = Ensure-Jdk
+          $env:YUNX_DESKTOP_DATA_DIR = Join-Path $env:RUNNER_TEMP 'yunx-http-tests'
+          Invoke-Gradle ':desktop:testInProcess' '--console=plain'
+          if ($LASTEXITCODE -ne 0) { throw 'Kotlin tests failed' }
+          git diff --exit-code -- sdk/cpp/include/yunx_client.hpp
+          if ($LASTEXITCODE -ne 0) { throw 'Regenerate the C++ SDK with api/generate.ps1' }
+      - name: Compile minimal C++ example and smoke client
+        run: .\sdk\cpp\build.ps1 -Tests
+      - name: Build portable service
+        run: .\portable-package.ps1
+      - name: Test packaged service with C++ SDK
+        run: .\ci\http-smoke.ps1
+      - name: Test Chromium login startup and window close
+        run: .\ci\http-smoke.ps1 -LoginPlatform quark
+      - name: Assemble artifacts
+        run: |
+          Compress-Archive -Path release/YunX-Desktop -DestinationPath build/YunX-HTTP-windows-x64.zip
+          $sdk = 'build/sdk'
+          New-Item -ItemType Directory -Force -Path "$sdk/include/nlohmann" | Out-Null
+          Copy-Item sdk/cpp/include/yunx_client.hpp "$sdk/include/"
+          Copy-Item build/cpp/deps/nlohmann/json.hpp "$sdk/include/nlohmann/"
+          Copy-Item sdk/cpp/example.cpp "$sdk/"
+          Copy-Item docs/HTTP-API.md "$sdk/"
+          Copy-Item LICENSE "$sdk/"
+          Compress-Archive -Path "$sdk/*" -DestinationPath build/YunX-HTTP-cpp-sdk.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YunX-HTTP-windows-x64
+          path: |
+            build/YunX-HTTP-windows-x64.zip
+            build/YunX-HTTP-cpp-sdk.zip
+          retention-days: 14
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: http-service-diagnostics
+          path: |
+            build/http-smoke/*.log
+            desktop/build/test-results/

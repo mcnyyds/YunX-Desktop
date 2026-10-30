@@ -76,8 +76,8 @@ class C139ResolveRepository(private val api: C139Api) : ShareResolveRepository {
             TransferSpaceGuard.ensureEnoughSpace(file.fsize.takeIf { it > 0 }, "139") { api.getQuota(cookie) }
         }
         val taskId = api.createTransferTask(
-            coIDLst = listOf(file.fid),
-            catalogIDLst = emptyList(),
+            coIDLst = if (file.isdir) emptyList() else listOf(file.fid),
+            catalogIDLst = if (file.isdir) listOf(file.fid) else emptyList(),
             toFolderId = toDirFid,
             linkID = session.shareId,
             account = account,
@@ -92,7 +92,7 @@ class C139ResolveRepository(private val api: C139Api) : ShareResolveRepository {
                 break
             }
         }
-        newId ?: throw IllegalStateException("转存超时或失败")
+        newId ?: throw TransferPendingException(taskId, "转存已提交，尚未取得目标文件标识，请检查目标目录")
     }.fold(
         onSuccess = { Result.success(it) },
         onFailure = { Result.failure(it) }

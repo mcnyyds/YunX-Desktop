@@ -113,6 +113,18 @@ val generateAppVersion by tasks.registering {
 }
 kotlin.sourceSets["main"].kotlin.srcDir(generateAppVersion)
 
+val generateHttpSdk by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Generate HTTP request models, routes and the C++ client header"
+    workingDir(rootProject.projectDir)
+    commandLine("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "api/generate.ps1")
+    inputs.files(rootProject.file("api/contract.json"), rootProject.file("api/generate.ps1"), rootProject.file("api/yunx_client.hpp.in"))
+    outputs.dir(layout.buildDirectory.dir("generated/http/kotlin"))
+    outputs.file(rootProject.file("sdk/cpp/include/yunx_client.hpp"))
+}
+kotlin.sourceSets["main"].kotlin.srcDir(layout.buildDirectory.dir("generated/http/kotlin"))
+tasks.named("compileKotlin") { dependsOn(generateHttpSdk) }
+
 tasks.withType<Test> {
     useJUnit()
     jvmArgs("-Dfile.encoding=UTF-8", "-Dsun.jnu.encoding=UTF-8")
@@ -145,7 +157,10 @@ tasks.register<JavaExec>("testInProcess") {
         "com.yunx.app.data.security.DbKeyStoreTest",
         "com.yunx.app.ui.login.XunleiVerificationPolicyTest",
         "com.yunx.app.data.network.XunleiWebCredentialTest",
-        "com.yunx.app.util.LogRedactorTest"
+        "com.yunx.app.util.LogRedactorTest",
+        "com.yunx.app.service.ResolverHttpServerTest",
+        "com.yunx.app.service.DownloadHeadersTest",
+        "com.yunx.app.service.DriveHttpIntegrationTest"
     )
 }
 

@@ -38,6 +38,9 @@ class Pan123AccountViewModel(
     var isLoggingIn by mutableStateOf(false)
         private set
 
+    var loginSucceeded by mutableStateOf(0)
+        private set
+
     fun consumeLoginError() {
         loginError = null
     }
@@ -67,6 +70,7 @@ class Pan123AccountViewModel(
                     loginError = message
                 } else {
                     addNewAccount = false
+                    loginSucceeded++
                 }
             } catch (e: CancellationException) {
                 throw e

@@ -1,6 +1,7 @@
 package com.yunx.app.data.network
 
 import com.yunx.app.data.network.model.DownloadLink
+import com.yunx.app.data.network.model.PlatformTaskPendingException
 import com.yunx.app.data.network.model.QuotaInfo
 import com.yunx.app.data.network.model.ShareExpire
 import com.yunx.app.data.network.model.ShareFile
@@ -561,7 +562,7 @@ class GuangYaApi(
             }
             delay(GuangYaConstants.TASK_DELAY_MS)
         }
-        throw IllegalStateException("光鸭操作仍在处理中，请稍后刷新列表确认结果")
+        throw PlatformTaskPendingException(taskId, "光鸭操作仍在处理中，请稍后刷新列表确认结果")
     }
 
     // ---------- 内部 ----------

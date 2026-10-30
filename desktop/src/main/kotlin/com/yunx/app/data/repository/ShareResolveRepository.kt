@@ -4,6 +4,8 @@ import com.yunx.app.data.network.model.DownloadLink
 import com.yunx.app.data.network.model.ShareFile
 import com.yunx.app.data.network.model.ShareSession
 
+class TransferPendingException(val taskId: String, message: String) : Exception(message)
+
 /**
  * 分享解析仓库公共接口：夸克 / UC 共用同一套流程（token → 列表 → 转存 → 直链）。
  */

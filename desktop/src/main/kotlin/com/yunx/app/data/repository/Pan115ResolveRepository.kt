@@ -137,7 +137,7 @@ class Pan115ResolveRepository(private val api: Pan115Api) : ShareResolveReposito
         val targetCid = toDirFid.ifBlank { Pan115Constants.ROOT_CID }
         api.receiveShare(session.shareId, receiveCode, file.fid, targetCid, cookie)
         waitNewFid(targetCid, file.fname, cookie)
-            ?: throw IllegalStateException("转存已完成，但未在目标目录找到文件，请到115网盘查看")
+            ?: throw TransferPendingException("", "转存已接收，但未在目标目录找到文件，请到115网盘查看")
     }.fold(
         onSuccess = { Result.success(it) },
         onFailure = { Result.failure(it) }

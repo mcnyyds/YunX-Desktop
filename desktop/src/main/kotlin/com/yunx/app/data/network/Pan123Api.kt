@@ -269,11 +269,12 @@ class Pan123Api(
     // ---------- 个人盘（网盘页，需登录+签名） ----------
 
     /** 个人盘文件列表：GET /b/api/file/list/new（文档 §5.4）。返回 (文件列表, 下一页游标 or null) */
-    suspend fun listCloudFiles(parentFileId: String, token: String): Pair<List<ShareFile>, String?> =
+    suspend fun listCloudFiles(parentFileId: String, token: String, cursor: String = "0"): Pair<List<ShareFile>, String?> =
         withContext(Dispatchers.IO) {
             val url = buildString {
                 append(Pan123Constants.FILE_LIST_URL)
-                append("?driveId=0&limit=100&next=0&orderBy=update_time&orderDirection=desc")
+                append("?driveId=0&limit=100&next=").append(URLEncoder.encode(cursor, "UTF-8"))
+                append("&orderBy=update_time&orderDirection=desc")
                 append("&parentFileId=").append(parentFileId)
                 append("&trashed=false&SearchData=&Page=1&OnlyLookAbnormalFile=0")
                 append("&event=homeListFile&operateType=1&inDirectSpace=false")
@@ -282,7 +283,7 @@ class Pan123Api(
             checkOk(json, "获取文件列表失败")
             val data = json.optJSONObject("data") ?: return@withContext Pair(emptyList(), null)
             val files = parseInfoList(data)
-            val next = data.optString("Next").takeIf { it != "-1" }
+            val next = data.optString("Next").takeIf { it.isNotBlank() && it != "-1" && it != "0" }
             Pair(files, next)
         }
 

@@ -59,7 +59,6 @@ fun ILanzouLoginScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit
 ) {
-    val account by viewModel.ilanzouAccount.collectAsState()
     val error = viewModel.loginError
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -73,8 +72,8 @@ fun ILanzouLoginScreen(
         }
     }
     // 登录成功后自动关闭登录页
-    LaunchedEffect(account) {
-        if (account != null) onSaved()
+    LaunchedEffect(viewModel.loginSucceeded) {
+        if (viewModel.loginSucceeded > 0) onSaved()
     }
 
     BackHandler { onBack() }

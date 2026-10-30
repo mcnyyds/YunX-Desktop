@@ -1,6 +1,7 @@
 package com.yunx.app.data.repository
 
 import com.yunx.app.data.network.ILanzouApi
+import com.yunx.app.data.db.ILanzouAccountEntity
 import com.yunx.app.data.network.ILanzouConstants
 import com.yunx.app.data.network.ShareLinkParser
 import com.yunx.app.data.network.model.DownloadLink
@@ -21,7 +22,8 @@ import kotlinx.coroutines.delay
  */
 class ILanzouResolveRepository(
     private val api: ILanzouApi,
-    private val accountRepository: ILanzouAccountRepository
+    private val accountRepository: ILanzouAccountRepository,
+    private val accountProvider: suspend () -> ILanzouAccountEntity? = { accountRepository.getAccount() }
 ) : ShareResolveRepository {
 
     @Volatile
@@ -51,7 +53,7 @@ class ILanzouResolveRepository(
         if (file.isdir) throw IllegalStateException("文件夹无法直接下载")
         val fileId = file.fid.removePrefix(ILanzouConstants.FILE_PREFIX)
         // downloadId = AES('<fileId>|<userId>')：未登录传空串，登录则用当前账号 userId
-        val userId = accountRepository.getAccount()?.userId.orEmpty()
+        val userId = accountProvider()?.userId.orEmpty()
         api.shareDownload(session.stoken, fileId, userId, uuid())
     }
 
@@ -72,7 +74,7 @@ class ILanzouResolveRepository(
         skipSpaceCheck: Boolean
     ): Result<String> = runCatching {
         val appToken = cookie.takeIf { it.isNotBlank() }
-            ?: accountRepository.getAccount()?.appToken?.takeIf { it.isNotBlank() }
+            ?: accountProvider()?.appToken?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("请先登录蓝奏云优享版")
         val target = toDirFid.ifBlank { ILanzouConstants.ROOT_FOLDER_ID }
         val fileIds = if (file.isdir) emptyList() else listOf(file.fid.removePrefix(ILanzouConstants.FILE_PREFIX))
@@ -86,7 +88,7 @@ class ILanzouResolveRepository(
                 delay(500)
                 if (runCatching { api.transferCount(appToken, uuid(), key) }.getOrDefault(0) == 1) done = true
             }
-            if (!done) throw IllegalStateException("蓝奏优享仍在处理转存，请稍后刷新列表")
+            if (!done) throw TransferPendingException(key, "蓝奏优享仍在处理转存，请稍后刷新列表")
         }
         target
     }
@@ -109,7 +111,7 @@ class ILanzouResolveRepository(
     /** 设备标识：优先复用账号里已保存的，其次请求服务端，最后进程内缓存（匿名解析也可用）。 */
     private suspend fun uuid(): String {
         cachedUuid?.let { return it }
-        val existing = accountRepository.getAccount()?.uuid?.takeIf { isValidUuid(it) }
+        val existing = accountProvider()?.uuid?.takeIf { isValidUuid(it) }
         val value = existing ?: api.getUuid()
         cachedUuid = value
         return value

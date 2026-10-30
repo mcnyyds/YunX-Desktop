@@ -43,6 +43,8 @@ object JcefHolder {
         private set
 
     private val lock = Any()
+    // CefApp initialization waits for the EDT; UI callers must never acquire its lock.
+    private val startLock = Any()
     private var initThread: Thread? = null
 
     fun initBlocking() {
@@ -97,7 +99,7 @@ object JcefHolder {
      * 完成后 [browserReady] 置为 true，登录页自动切换为内嵌浏览器模式。
      */
     fun initInBackground() {
-        synchronized(lock) {
+        synchronized(startLock) {
             if (browserReady) return
             if (initThread?.isAlive == true) return
             initThread = Thread({ initBlocking() }, "JCEF-Init").apply {

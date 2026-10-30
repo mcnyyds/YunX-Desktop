@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "basePath": "/api/v1",
+  "requests": {
+    "LoginRequest": { "platform": "string", "newAccount": "boolean?" },
+    "OpenShareRequest": { "link": "string", "password": "string?", "accountId": "string?" },
+    "ListRequest": { "directoryId": "string?" },
+    "DownloadRequest": { "fileId": "string", "preferNoSave": "boolean?" },
+    "CleanupRequest": { "cleanupId": "string" },
+    "DriveListRequest": { "accountId": "string", "directoryId": "string?" },
+    "CreateFolderRequest": { "accountId": "string", "parentId": "string?", "name": "string" },
+    "RenameRequest": { "accountId": "string", "fileId": "string", "name": "string" },
+    "MoveRequest": { "accountId": "string", "fileIds": "string[]", "targetDirectoryId": "string?" },
+    "DeleteRequest": { "accountId": "string", "fileIds": "string[]" },
+    "DriveDownloadRequest": { "accountId": "string", "fileId": "string" },
+    "CreateShareRequest": { "accountId": "string", "fileIds": "string[]", "title": "string?", "expirationDays": "integer?", "password": "string?" },
+    "TransferRequest": { "accountId": "string", "fileIds": "string[]", "targetDirectoryId": "string?" }
+  },
+  "operations": [
+    { "name": "health", "method": "GET", "path": "/health" },
+    { "name": "platforms", "method": "GET", "path": "/platforms" },
+    { "name": "start_login", "method": "POST", "path": "/auth/logins", "request": "LoginRequest" },
+    { "name": "get_login", "method": "GET", "path": "/auth/logins/{id}" },
+    { "name": "cancel_login", "method": "DELETE", "path": "/auth/logins/{id}" },
+    { "name": "accounts", "method": "GET", "path": "/accounts" },
+    { "name": "remove_account", "method": "DELETE", "path": "/accounts/{id}" },
+    { "name": "open_share", "method": "POST", "path": "/shares", "request": "OpenShareRequest" },
+    { "name": "list_files", "method": "POST", "path": "/shares/{id}/list", "request": "ListRequest" },
+    { "name": "get_download_link", "method": "POST", "path": "/shares/{id}/download-link", "request": "DownloadRequest" },
+    { "name": "cleanup", "method": "POST", "path": "/shares/{id}/cleanup", "request": "CleanupRequest" },
+    { "name": "drive_list", "method": "POST", "path": "/drives/list", "request": "DriveListRequest" },
+    { "name": "create_folder", "method": "POST", "path": "/drives/folders", "request": "CreateFolderRequest" },
+    { "name": "rename", "method": "POST", "path": "/drives/rename", "request": "RenameRequest" },
+    { "name": "move", "method": "POST", "path": "/drives/move", "request": "MoveRequest" },
+    { "name": "delete_files", "method": "POST", "path": "/drives/delete", "request": "DeleteRequest" },
+    { "name": "drive_download_link", "method": "POST", "path": "/drives/download-link", "request": "DriveDownloadRequest" },
+    { "name": "create_share", "method": "POST", "path": "/drives/create-share", "request": "CreateShareRequest" },
+    { "name": "transfer_share", "method": "POST", "path": "/shares/{id}/transfer", "request": "TransferRequest" }
+  ]
+}

@@ -37,6 +37,9 @@ class ILanzouAccountViewModel(
     var isLoggingIn by mutableStateOf(false)
         private set
 
+    var loginSucceeded by mutableStateOf(0)
+        private set
+
     fun consumeLoginError() {
         loginError = null
     }
@@ -58,7 +61,7 @@ class ILanzouAccountViewModel(
             isLoggingIn = true
             try {
                 repository.login(account, password, newAccount = addNewAccount).fold(
-                    onSuccess = { addNewAccount = false },
+                    onSuccess = { addNewAccount = false; loginSucceeded++ },
                     onFailure = { loginError = it.message ?: "登录失败，请检查账号密码" }
                 )
             } catch (e: Exception) {

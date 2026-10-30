@@ -21,7 +21,7 @@ object AppContext {
 
     /** 应用数据根目录：默认 <用户目录>/.yunx-desktop；可用环境变量 YUNX_DESKTOP_DATA_DIR 覆盖（测试/沙箱环境用） */
     val dataDir: File = System.getenv("YUNX_DESKTOP_DATA_DIR")?.let { File(it) }
-        ?: File(System.getProperty("user.home"), ".yunx-desktop")
+        ?: File(System.getProperty("user.home"), ".yunx-http")
 
     /** 旧版数据根目录（.yunx-pc）：首次启动时整体迁移到新目录 */
     private val legacyDataDir: File = File(System.getProperty("user.home"), ".yunx-pc")
@@ -29,7 +29,7 @@ object AppContext {
     // ---------- 杂项偏好（必须在下面解析目录之前声明：Kotlin 单例按声明顺序初始化）----------
 
     /** 杂项偏好（原 "yunx_prefs" SharedPreferences：onboarding_shown / ignored_version） */
-    val miscPrefs: Preferences = Preferences.userRoot().node("yunx/misc")
+    val miscPrefs: Preferences = Preferences.userRoot().node("yunx-http/misc")
 
     /**
      * 设置偏好：与 [com.yunx.app.data.prefs.SettingsRepository] **共用同一个节点**。
@@ -38,7 +38,7 @@ object AppContext {
      *   所以 AppContext 直接读这个节点 —— 若自己另开一个节点，就会出现「设置页写进 A、这里读 B」，
      *   表现为切换目录后重启仍显示「当前生效（重启前）」（读不到配置 → 一直回退默认）。
      */
-    val settingsPrefs: Preferences = Preferences.userRoot().node("yunx/settings")
+    val settingsPrefs: Preferences = Preferences.userRoot().node("yunx-http/settings")
 
     /** 迅雷设备指纹偏好（原 "xunlei_device_fp"） */
     val xunleiFpPrefs: Preferences = Preferences.userRoot().node("yunx/xunlei_fp")
@@ -72,7 +72,6 @@ object AppContext {
     internal const val KEY_CACHE_MIGRATED_FROM = "storage_cache_migrated_from"
 
     fun init() {
-        migrateLegacyDataDir()
         listOf(dataDir, dbDir, cacheDir, downloadTmpDir, mergeDir, filesDir).forEach { it.mkdirs() }
         cleanupMigratedStorage()
     }
