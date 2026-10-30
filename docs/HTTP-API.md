@@ -191,4 +191,6 @@ SDK 将 HTTP 业务错误抛为 `yunx::ApiError`，包含 `status`、`code` 和 
 
 GitHub Actions 在 Windows 上运行现有 Kotlin 测试及新增 HTTP 集成测试，编译 C++ SDK，再对便携包运行 C++ 冒烟测试；上传服务包和 SDK 包。CI 使用本地上游 HTTP fixture 验证真实解析代码，不需要网盘凭证。真实扫码、验证码、各平台在线解析及会员限制仍需人工验收。
 
+`main` 推送和 `main` 上的手动运行在全部检查成功后自动发布 Release，标签为 `http-v<version.txt版本号>-build.<流水号>`。发布作业直接使用本次构建的已验证产物，并把标签指向本次提交；PR 不发布。Release 附带 `YunX-HTTP-windows-x64.zip` 与 `YunX-HTTP-cpp-sdk.zip`，可从仓库的 Releases 页面下载。
+
 项目代码继续遵循仓库 AGPL-3.0 许可证；随 SDK 分发的 nlohmann/json 头文件保留其 MIT 许可证声明。

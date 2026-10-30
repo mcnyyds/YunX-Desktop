@@ -14,7 +14,7 @@
 
 ## 使用
 
-下载 Actions 产物中的便携包，解压后在 PowerShell 启动：
+从 [最新 Release](https://github.com/mcnyyds/YunX-Desktop/releases/latest) 下载便携包，解压后在 PowerShell 启动：
 
 ```powershell
 $env:YUNX_HTTP_TOKEN = 'replace-with-your-own-token'
@@ -49,6 +49,8 @@ $env:YUNX_HTTP_TOKEN = 'replace-with-your-own-token'
 沿用仓库 Gradle / PowerShell 构建流程；JDK 17 缺失时由现有脚本准备。协议定义在 `api/contract.json`，生成文件通过 `api/generate.ps1` 更新。
 
 GitHub Actions 工作流为 [.github/workflows/http-service.yml](.github/workflows/http-service.yml)，支持 main 推送、PR 和手动运行。输出 `YunX-HTTP-windows-x64.zip` 和 `YunX-HTTP-cpp-sdk.zip`。
+
+推送到 `main` 或在 `main` 手动运行后，测试与打包全部通过才会自动发布 GitHub Release；PR 只构建。发布标签为 `http-v<version.txt版本号>-build.<Actions流水号>`，并更新为最新 Release。每个 Release 附带服务包与 C++ SDK 包，沿用 `version.txt` 作为程序版本来源。
 
 ## 协议
 
