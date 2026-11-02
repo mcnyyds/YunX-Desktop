@@ -73,146 +73,95 @@ class AppDatabase private constructor(private val conn: Connection) {
             val dbFile = File(AppContext.dbDir, "yunx.db")
             dbFile.parentFile?.mkdirs()
 
-            // ==== TEMP DIAG (remove) ====
-            System.err.println("[YunX-DIAG] dataDir=" + AppContext.dataDir.absolutePath)
-            System.err.println("[YunX-DIAG] dbDir=" + AppContext.dbDir.absolutePath)
-            System.err.println("[YunX-DIAG] dbFile=" + dbFile.absolutePath + " exists=" + dbFile.exists() +
-                " isFile=" + dbFile.isFile + " len=" + dbFile.length() +
-                " canRead=" + dbFile.canRead() + " canWrite=" + dbFile.canWrite())
-            System.err.println("[YunX-DIAG] dbDir exists=" + AppContext.dbDir.exists() +
-                " isDir=" + AppContext.dbDir.isDirectory + " canWrite=" + AppContext.dbDir.canWrite())
-            System.err.println("[YunX-DIAG] userHome=" + System.getProperty("user.home") +
-                " userDir=" + System.getProperty("user.dir") +
-                " tmpdir=" + System.getProperty("java.io.tmpdir") +
-                " jnu=" + System.getProperty("sun.jnu.encoding") +
-                " fileEnc=" + System.getProperty("file.encoding"))
-            System.err.println("[YunX-DIAG] envYunxDataDir=" + System.getenv("YUNX_DESKTOP_DATA_DIR"))
-            runCatching {
-                val wal = File(AppContext.dbDir, "yunx.db-wal")
-                val created = wal.createNewFile()
-                System.err.println("[YunX-DIAG] createWal created=" + created + " exists=" + wal.exists())
-                runCatching { wal.delete() }
-            }.onFailure { System.err.println("[YunX-DIAG] createWal FAILED: " + it) }
-            // ==== END TEMP DIAG ====
-
-            // 自愈：进程被强杀/崩溃后，WAL 的 -shm（共享内存索引）可能损坏或 mmap 失败
-            // （SQLITE_IOERR_SHMMAP），表现为应用启动即崩。-shm 可由 sqlite 随时重建
-            // （-wal 仍会回放，近期数据不丢）；若 -wal 本身也损坏，第二轮连 -wal 一起删，
-            // 恢复到最后一次 checkpoint 状态——远好于无法启动。
-            var lastError: Exception? = null
-            repeat(3) { attempt ->
-                var conn: Connection? = null
-                try {
-                    conn = DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}")
-                    conn.createStatement().use { st ->
-                        st.execute("PRAGMA journal_mode=WAL")
-                        st.execute("PRAGMA busy_timeout=5000")
-                        st.execute("PRAGMA synchronous=NORMAL")
-                    }
-                    DDL.forEach { sql ->
-                        conn.createStatement().use { it.execute(sql) }
-                    }
-                    // 迁移：旧库缺少 shareUrl 列时补上（CREATE TABLE IF NOT EXISTS 不会改既有表结构）
-                    runCatching {
-                        conn.createStatement().use {
-                            it.execute("ALTER TABLE download_task ADD COLUMN shareUrl TEXT NOT NULL DEFAULT ''")
-                        }
-                    }
-                    // 迁移：旧库缺少 engineTaskId 列时补上（外部 Gopeed 引擎任务 ID；空串=内置下载器）
-                    runCatching {
-                        conn.createStatement().use {
-                            it.execute("ALTER TABLE download_task ADD COLUMN engineTaskId TEXT NOT NULL DEFAULT ''")
-                        }
-                    }
-                    // 迁移：旧库缺少 altSourcesJson 列时补上（多账号下载 C2 的备选直链，加密落库；空串=单源）
-                    runCatching {
-                        conn.createStatement().use {
-                            it.execute("ALTER TABLE download_task ADD COLUMN altSourcesJson TEXT NOT NULL DEFAULT ''")
-                        }
-                    }
-                    // 迁移：旧库缺少 saveDir 列时补上（单次下载的保存目录覆盖；空串=跟随全局设置）
-                    runCatching {
-                        conn.createStatement().use {
-                            it.execute("ALTER TABLE download_task ADD COLUMN saveDir TEXT NOT NULL DEFAULT ''")
-                        }
-                    }
-                    // 迁移：实验性直写临时文件路径 / 模式
-                    runCatching {
-                        conn.createStatement().use {
-                            it.execute("ALTER TABLE download_task ADD COLUMN directPart TEXT NOT NULL DEFAULT ''")
-                        }
-                    }
-                    runCatching {
-                        conn.createStatement().use {
-                            it.execute("ALTER TABLE download_task ADD COLUMN directMode INTEGER NOT NULL DEFAULT 0")
-                        }
-                    }
-                    // 迁移：DASH 分轨下载（哔哩哔哩高清）与动图合成所需的三列
-                    runCatching {
-                        conn.createStatement().use {
-                            it.execute("ALTER TABLE download_task ADD COLUMN mergeAudioUrl TEXT NOT NULL DEFAULT ''")
-                        }
-                    }
-                    runCatching {
-                        conn.createStatement().use {
-                            it.execute("ALTER TABLE download_task ADD COLUMN mergeAudioHeadersJson TEXT NOT NULL DEFAULT ''")
-                        }
-                    }
-                    runCatching {
-                        conn.createStatement().use {
-                            it.execute("ALTER TABLE download_task ADD COLUMN motionUrl TEXT NOT NULL DEFAULT ''")
-                        }
-                    }
-                    // 迁移：旧库缺少 authType 列时补上（迅雷登录方式；空串=App 通道，webToken=网页登录）
-                    runCatching {
-                        conn.createStatement().use {
-                            it.execute("ALTER TABLE xunlei_account ADD COLUMN authType TEXT NOT NULL DEFAULT ''")
-                        }
-                    }
-                    // 迁移：多账号（isPrimary / remark）。旧库逐表补列，已存在时忽略。
-                    ACCOUNT_TABLES.forEach { table ->
-                        runCatching {
-                            conn.createStatement().use {
-                                it.execute("ALTER TABLE $table ADD COLUMN isPrimary INTEGER NOT NULL DEFAULT 1")
-                            }
-                        }
-                        runCatching {
-                            conn.createStatement().use {
-                                it.execute("ALTER TABLE $table ADD COLUMN remark TEXT NOT NULL DEFAULT ''")
-                            }
-                        }
-                    }
-                    Log.i(TAG, "database opened: ${dbFile.absolutePath}")
-                    // 诊断模式：库开好时记一条（业务表清单 + 每张表行数）
-                    logSchema(conn)
-                    return AppDatabase(conn)
-                } catch (e: Exception) {
-                    lastError = e
-                    runCatching { conn?.close() }
-                    Log.e(TAG, "database open attempt ${attempt + 1} failed: ${e.message}")
-                    // ==== TEMP DIAG (remove) ====
-                    System.err.println("[YunX-DIAG] attempt=" + (attempt + 1) + " connNull=" + (conn == null))
-                    e.printStackTrace()
-                    // ==== END TEMP DIAG ====
-                    runCatching {
-                        when (attempt) {
-                            0 -> {
-                                // 第一轮：仅删 -shm（保留 -wal 以回放近期事务）
-                                File("${dbFile.absolutePath}-shm").delete()
-                                Log.w(TAG, "WAL shm removed, retrying open")
-                            }
-                            1 -> {
-                                // 第二轮：-wal 也损坏，一并删除回退到最后 checkpoint
-                                listOf("${dbFile.absolutePath}-shm", "${dbFile.absolutePath}-wal")
-                                    .forEach { runCatching { File(it).delete() } }
-                                Log.w(TAG, "WAL shm+wal removed, retrying open")
-                            }
-                        }
-                        Thread.sleep(300L * (attempt + 1))
+            // 未 checkpoint 的账号可能只在 WAL 中；打开前不能删除 SQLite 的日志文件。
+            val conn = DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}")
+            try {
+                conn.createStatement().use { st ->
+                    st.execute("PRAGMA journal_mode=WAL")
+                    st.execute("PRAGMA busy_timeout=5000")
+                    st.execute("PRAGMA synchronous=NORMAL")
+                }
+                DDL.forEach { sql ->
+                    conn.createStatement().use { it.execute(sql) }
+                }
+                // 迁移：旧库缺少 shareUrl 列时补上（CREATE TABLE IF NOT EXISTS 不会改既有表结构）
+                runCatching {
+                    conn.createStatement().use {
+                        it.execute("ALTER TABLE download_task ADD COLUMN shareUrl TEXT NOT NULL DEFAULT ''")
                     }
                 }
+                // 迁移：旧库缺少 engineTaskId 列时补上（外部 Gopeed 引擎任务 ID；空串=内置下载器）
+                runCatching {
+                    conn.createStatement().use {
+                        it.execute("ALTER TABLE download_task ADD COLUMN engineTaskId TEXT NOT NULL DEFAULT ''")
+                    }
+                }
+                // 迁移：旧库缺少 altSourcesJson 列时补上（多账号下载 C2 的备选直链，加密落库；空串=单源）
+                runCatching {
+                    conn.createStatement().use {
+                        it.execute("ALTER TABLE download_task ADD COLUMN altSourcesJson TEXT NOT NULL DEFAULT ''")
+                    }
+                }
+                // 迁移：旧库缺少 saveDir 列时补上（单次下载的保存目录覆盖；空串=跟随全局设置）
+                runCatching {
+                    conn.createStatement().use {
+                        it.execute("ALTER TABLE download_task ADD COLUMN saveDir TEXT NOT NULL DEFAULT ''")
+                    }
+                }
+                // 迁移：实验性直写临时文件路径 / 模式
+                runCatching {
+                    conn.createStatement().use {
+                        it.execute("ALTER TABLE download_task ADD COLUMN directPart TEXT NOT NULL DEFAULT ''")
+                    }
+                }
+                runCatching {
+                    conn.createStatement().use {
+                        it.execute("ALTER TABLE download_task ADD COLUMN directMode INTEGER NOT NULL DEFAULT 0")
+                    }
+                }
+                // 迁移：DASH 分轨下载（哔哩哔哩高清）与动图合成所需的三列
+                runCatching {
+                    conn.createStatement().use {
+                        it.execute("ALTER TABLE download_task ADD COLUMN mergeAudioUrl TEXT NOT NULL DEFAULT ''")
+                    }
+                }
+                runCatching {
+                    conn.createStatement().use {
+                        it.execute("ALTER TABLE download_task ADD COLUMN mergeAudioHeadersJson TEXT NOT NULL DEFAULT ''")
+                    }
+                }
+                runCatching {
+                    conn.createStatement().use {
+                        it.execute("ALTER TABLE download_task ADD COLUMN motionUrl TEXT NOT NULL DEFAULT ''")
+                    }
+                }
+                // 迁移：旧库缺少 authType 列时补上（迅雷登录方式；空串=App 通道，webToken=网页登录）
+                runCatching {
+                    conn.createStatement().use {
+                        it.execute("ALTER TABLE xunlei_account ADD COLUMN authType TEXT NOT NULL DEFAULT ''")
+                    }
+                }
+                // 迁移：多账号（isPrimary / remark）。旧库逐表补列，已存在时忽略。
+                ACCOUNT_TABLES.forEach { table ->
+                    runCatching {
+                        conn.createStatement().use {
+                            it.execute("ALTER TABLE $table ADD COLUMN isPrimary INTEGER NOT NULL DEFAULT 1")
+                        }
+                    }
+                    runCatching {
+                        conn.createStatement().use {
+                            it.execute("ALTER TABLE $table ADD COLUMN remark TEXT NOT NULL DEFAULT ''")
+                        }
+                    }
+                }
+                Log.i(TAG, "database opened: ${dbFile.absolutePath}")
+                // 诊断模式：库开好时记一条（业务表清单 + 每张表行数）
+                logSchema(conn)
+                return AppDatabase(conn)
+            } catch (error: Exception) {
+                runCatching { conn.close() }
+                throw error
             }
-            throw lastError ?: IllegalStateException("database open failed")
         }
 
         /**
